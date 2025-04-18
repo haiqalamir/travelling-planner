@@ -1,0 +1,276 @@
+/* styles/global.css */
+
+/* Reset some default styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f7f9fc;
+  color: #333;
+  line-height: 1.6;
+}
+
+/* Container to center content */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Site Header */
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #004d99, #0066cc);
+  padding: 20px;
+  color: #fff;
+}
+
+.site-header .logo h1 {
+  font-size: 2em;
+  color: #fff;
+}
+
+.site-nav a {
+  color: #fff;
+  text-decoration: none;
+  margin-left: 20px;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.site-nav a:hover {
+  color: #cce6ff;
+}
+
+/* Hero Section */
+.hero {
+  position: relative;
+  height: 80vh;
+  background: url('/images/hero-bg.jpg') no-repeat center center/cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.hero-content {
+  position: relative;
+  text-align: center;
+  z-index: 2;
+}
+
+.hero-content h2 {
+  font-size: 5em;
+  margin-bottom: 20px;
+  color: #fff;
+}
+
+.hero-content p {
+  font-size: 1.3em;
+  margin-bottom: 30px;
+}
+
+/* Buttons */
+.btn {
+  padding: 12px 30px;
+  font-size: 1em;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.3s ease;
+}
+
+.primary-btn {
+  background-color: #004d99;
+  color: #fff;
+}
+
+.primary-btn:hover {
+  background-color: #003366;
+}
+
+/* Content Section */
+.content-section {
+  padding: 50px 0;
+}
+
+/* Card Design */
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 40px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 40px;
+}
+
+.card h2 {
+  font-size: 2.5em;
+} 
+
+/* Form Styles */
+.form-group {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1em;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #004d99;
+}
+
+.checkbox-group {
+  flex-direction: row;
+  align-items: center;
+}
+
+.checkbox-group label {
+  margin-right: 8px;
+}
+
+.form-message {
+  margin-top: 15px;
+  font-size: 1.1em;
+  text-align: center;
+  color: #006600;
+}
+
+.error-msg {
+  color: #cc0000;
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* Trip List (View Plans) */
+.trip-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.trip-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.trip-card h3 {
+  margin-bottom: 10px;
+  color: #004d99;
+  font-size: 1.5em;
+}
+
+.info-text {
+  text-align: center;
+  font-size: 1.1em;
+  margin-top: 20px;
+}
+
+/* Footer */
+.site-footer {
+  text-align: center;
+  padding: 20px 0;
+  background-color: #f1f4f8;
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .site-header {
+    flex-direction: column;
+  }
+  .site-nav {
+    margin-top: 15px;
+  }
+  .hero-content h2 {
+    font-size: 2.5em;
+  }
+  .hero-content p {
+    font-size: 1.1em;
+  }
+}
+
+.ant-btn-danger {
+  background-color: #ff4d4f;
+  border-color: #ff4d4f;
+  color: #fff;
+}
+
+.ant-btn-danger:hover {
+  background-color: #ff7875;
+  border-color: #ff7875;
+}
+
+/* Ensure links in trip cards have appropriate styles */
+.trip-card h3 a {
+  text-decoration: none;
+  color: #004d99;
+}
+
+.trip-card h3 a:hover {
+  text-decoration: underline;
+}
+
+/* Global CSS additions for planDetails page media */
+.media-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.country-flag,
+.coat-of-arms {
+  max-height: 120px;
+  width: auto;
+  object-fit: contain;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
+
+/* Increase the size of the country flag */
+img.country-flag,
+img.coat-of-arms {
+  max-height: 315px !important;
+  height: 315px !important;
+  width: auto !important;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+}
