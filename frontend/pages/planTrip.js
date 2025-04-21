@@ -50,66 +50,84 @@ const languages = [
   "Thai", "Turkish", "Turkmen", "Ukrainian", "Urdu", "Uzbek", "Vietnamese", "Welsh", "Xhosa", "Yiddish", "Yoruba", "Zulu"
 ];
 
+// Add‑on services
+const SERVICE_OPTIONS = [
+  { key: 'Accommodation',  label: 'Accommodation: hotel stay (base RM150)' },
+  { key: 'Transport',      label: 'Transport: airport & local (base RM50)' },
+  { key: 'Entertainment',  label: 'Entertainment: tours & events (base RM100)' },
+  { key: 'Meals',          label: 'Meals: full meal plan (base RM60)' },
+  { key: 'Insurance',      label: 'Insurance: travel coverage (base RM30)' },
+  { key: 'Misc',           label: 'Misc: fees, taxes, tips (base RM25)' },
+];
+
 export default function PlanTrip() {
   const [formData, setFormData] = useState({
-    customerId: '', // This will be set automatically from the session.
+    customerId: '',           // filled from session
     travelDateTime: '',
     country: '',
     languageSpoken: '',
     numberOfTravelers: 1,
     languageSuitability: false,
   });
-  const [messageText, setMessageText] = useState('');
+  const [selectedServices, setSelectedServices] = useState([]);
   const router = useRouter();
 
-  // On mount: check session and set customerId automatically.
+  // On mount: check login & set customerId
   useEffect(() => {
     const session = localStorage.getItem('user');
     if (!session) {
       router.push('/login');
     } else {
-      const sessionData = JSON.parse(session);
-      setFormData(prev => ({ ...prev, customerId: sessionData.customerId }));
+      const { customerId } = JSON.parse(session);
+      setFormData(f => ({ ...f, customerId }));
     }
   }, [router]);
 
-  // Logout handler
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
   };
 
-  // Handle text and checkbox inputs
-  const handleChange = (e) => {
+  const handleChange = e => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    setFormData(f => ({
+      ...f,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
-  // Handle country selection
-  const handleCountryChange = (value) => {
-    setFormData(prev => ({ ...prev, country: value }));
+  const handleCountryChange = v => {
+    setFormData(f => ({ ...f, country: v }));
   };
 
-  // Handle language selection
-  const handleLanguageChange = (value) => {
-    setFormData(prev => ({ ...prev, languageSpoken: value }));
+  const handleLanguageChange = v => {
+    setFormData(f => ({ ...f, languageSpoken: v }));
   };
 
-  // Handle date and time selection using DatePicker.
-  const handleDateChange = (date, dateString) => {
-    setFormData(prev => ({ ...prev, travelDateTime: dateString }));
+  const handleDateChange = (_d, ds) => {
+    setFormData(f => ({ ...f, travelDateTime: ds }));
   };
 
-  const handleSubmit = async (e) => {
+  const toggleService = key => {
+    setSelectedServices(s =>
+      s.includes(key)
+        ? s.filter(x => x !== key)
+        : [...s, key]
+    );
+  };
+
+  const handleSubmit = async e => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:3001/api/holidayPlanner', formData);
+      await axios.post('http://localhost:3001/api/holidayPlanner', {
+        ...formData,
+        selectedServices
+      });
       message.success('Trip planned successfully!', 3);
-      // Refresh the page after a short delay (e.g., 3 seconds)
       setTimeout(() => router.reload(), 3000);
-    } catch (error) {
-      console.error(error);
-      message.error(error.response?.data?.error || 'Error planning trip', 3);
+    } catch (err) {
+      console.error(err);
+      message.error(err.response?.data?.error || 'Error planning trip', 3);
     }
   };
 
@@ -136,23 +154,21 @@ export default function PlanTrip() {
           <div className="card form-card">
             <h2>Trip Details</h2>
             <form onSubmit={handleSubmit} className="trip-form">
-              {/* Customer ID is no longer manually entered */}
+              {/* Travel Date & Time */}
               <div className="form-group">
                 <label htmlFor="travelDateTime">Travel Date and Time:</label>
-                <DatePicker 
+                <DatePicker
                   id="travelDateTime"
-                  showTime={{ 
-                    format: 'hh:mm A',
-                    use12Hours: true,
-                  }}
+                  showTime={{ format: 'hh:mm A', use12Hours: true }}
                   format="DD/MM/YYYY hh:mm A"
                   onChange={handleDateChange}
                   style={{ width: "100%" }}
                   placeholder="Select travel date and time"
-                  required 
+                  required
                 />
               </div>
 
+              {/* Country */}
               <div className="form-group">
                 <label htmlFor="country">Country:</label>
                 <Select
@@ -162,11 +178,12 @@ export default function PlanTrip() {
                   value={formData.country || undefined}
                   onChange={handleCountryChange}
                   filterOption={(input, option) =>
-                    option?.props?.children?.toString().toLowerCase().includes(input.toLowerCase())
+                    option?.props?.children.toLowerCase().includes(input.toLowerCase())
                   }
                   style={{ width: "100%" }}
+                  required
                 >
-                  {countries.map((country) => (
+                  {countries.map(country => (
                     <Option key={country} value={country}>
                       {country}
                     </Option>
@@ -174,6 +191,7 @@ export default function PlanTrip() {
                 </Select>
               </div>
 
+              {/* Language */}
               <div className="form-group">
                 <label htmlFor="languageSpoken">Language Spoken:</label>
                 <Select
@@ -183,11 +201,12 @@ export default function PlanTrip() {
                   value={formData.languageSpoken || undefined}
                   onChange={handleLanguageChange}
                   filterOption={(input, option) =>
-                    option?.props?.children?.toString().toLowerCase().includes(input.toLowerCase())
+                    option?.props?.children.toLowerCase().includes(input.toLowerCase())
                   }
                   style={{ width: "100%" }}
+                  required
                 >
-                  {languages.map((lang) => (
+                  {languages.map(lang => (
                     <Option key={lang} value={lang}>
                       {lang}
                     </Option>
@@ -195,6 +214,7 @@ export default function PlanTrip() {
                 </Select>
               </div>
 
+              {/* Number of Travelers */}
               <div className="form-group">
                 <label htmlFor="numberOfTravelers">Number of Travelers:</label>
                 <input
@@ -203,11 +223,12 @@ export default function PlanTrip() {
                   name="numberOfTravelers"
                   value={formData.numberOfTravelers}
                   onChange={handleChange}
-                  required
                   min="1"
+                  required
                 />
               </div>
 
+              {/* Language Suitability */}
               <div className="form-group checkbox-group">
                 <label htmlFor="languageSuitability">Know local language?</label>
                 <input
@@ -217,6 +238,24 @@ export default function PlanTrip() {
                   checked={formData.languageSuitability}
                   onChange={handleChange}
                 />
+              </div>
+
+              {/* Additional Services */}
+              <div className="form-group">
+                <label>Additional Services:</label>
+                {SERVICE_OPTIONS.map(svc => (
+                  <div key={svc.key} className="checkbox-group">
+                    <input
+                      type="checkbox"
+                      id={svc.key}
+                      name="selectedServices"
+                      value={svc.key}
+                      checked={selectedServices.includes(svc.key)}
+                      onChange={() => toggleService(svc.key)}
+                    />
+                    <label htmlFor={svc.key}>{svc.label}</label>
+                  </div>
+                ))}
               </div>
 
               <button type="submit" className="btn primary-btn">

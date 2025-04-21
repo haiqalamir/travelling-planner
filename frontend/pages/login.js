@@ -11,19 +11,19 @@ class LoginForm extends React.Component {
     e.preventDefault();
     this.props.form.validateFields((err, values) => {
       if (!err) {
-        // "identifier" accepts either username or email
         axios
           .post('http://localhost:3001/api/login', values)
           .then((res) => {
-            // Save the response data (or token) to localStorage.
-            // Adjust the data you store based on what your backend returns.
-            localStorage.setItem('user', JSON.stringify(res.data));
-            // Redirect to the home (index) page.
+            const data = res.data;
+            // Save full user info (including customerId) for session usage
+            localStorage.setItem('user', JSON.stringify(data));
+            // Save raw JWT for Authorization header
+            localStorage.setItem('token', data.token);
+            // Redirect to home
             Router.push('/');
           })
-          .catch((error) => {
-            // Use Ant Design's message component to show a popup error.
-            message.error("Incorrect username/password!", 3);
+          .catch(() => {
+            message.error('Incorrect username/password!', 3);
           });
       }
     });

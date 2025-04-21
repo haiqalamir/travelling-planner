@@ -4,53 +4,96 @@ import axios from 'axios';
 import Head from 'next/head';
 import Link from 'next/link';
 import { Button, Popconfirm, message as antdMessage } from 'antd';
-import Router, { useRouter } from 'next/router';
+import { useRouter } from 'next/router';
 
 export default function ViewPlans() {
   const [trips, setTrips] = useState([]);
   const [error, setError] = useState('');
   const router = useRouter();
 
+  // Load trips on mount
   useEffect(() => {
-    // Check for the session in localStorage
-    const session = localStorage.getItem('user');
-    if (!session) {
-      // No session: redirect to login page
+    const raw = localStorage.getItem('user');
+    if (!raw) {
       router.push('/login');
-    } else {
-      // Parse session data to get customerId
-      const sessionData = JSON.parse(session);
-      const customerId = sessionData.customerId;
-      // Fetch trips using the customerId from session
-      axios
-        .get('http://localhost:3001/api/viewPlans', {
-          headers: { 'x-user-id': customerId },
-        })
-        .then((res) => {
-          setTrips(res.data);
-          setError('');
-        })
-        .catch((err) => {
-          setError(err.response?.data?.error || 'Error retrieving trips');
-          setTrips([]);
-        });
+      return;
     }
+    const { customerId } = JSON.parse(raw);
+
+    axios
+      .get('http://localhost:3001/api/viewPlans', {
+        headers: { 'x-user-id': customerId }
+      })
+      .then((res) => {
+        setTrips(res.data);
+        setError('');
+      })
+      .catch((err) => {
+        console.error('Error fetching trips:', err);
+        setError(err.response?.data?.error || 'Error retrieving trips');
+      });
   }, [router]);
 
-  // Handler for deleting a trip
+  // Delete a trip
   const handleDelete = (planId) => {
     axios
       .delete(`http://localhost:3001/api/holidayPlanner/${planId}`)
-      .then((res) => {
+      .then(() => {
         antdMessage.success('Trip deleted successfully!');
-        setTrips(trips.filter((trip) => trip._id !== planId));
+        setTrips((t) => t.filter((trip) => trip._id !== planId));
       })
       .catch((err) => {
+        console.error('Error deleting trip:', err);
         antdMessage.error('Failed to delete the trip.');
       });
   };
 
-  // Logout handler: clear session and redirect to login
+  // Generate invoice PDF for a trip
+  const handleInvoice = async (planId) => {
+    const raw = localStorage.getItem('user');
+    if (!raw) {
+      antdMessage.error('Please log in again.');
+      router.push('/login');
+      return;
+    }
+    const { customerId } = JSON.parse(raw);
+
+    try {
+      const res = await axios.post(
+        'http://localhost:3001/api/generateInvoice',
+        { tripId: planId },               // your backend reads req.body.tripId
+        {
+          headers: { 'x-user-id': customerId },
+          responseType: 'blob'
+        }
+      );
+
+      // Trigger download of the PDF
+      const url = window.URL.createObjectURL(
+        new Blob([res.data], { type: 'application/pdf' })
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice-${planId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+
+      antdMessage.success('Invoice generated!');
+    } catch (err) {
+      console.error('Invoice generation failed:', err);
+      if (err.response?.status === 401) {
+        antdMessage.error('Unauthorized – please log in again.');
+        localStorage.removeItem('user');
+        router.push('/login');
+      } else if (err.response?.data?.error) {
+        antdMessage.error(err.response.data.error);
+      } else {
+        antdMessage.error('Error generating invoice.');
+      }
+    }
+  };
+
+  // Logout
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
@@ -59,58 +102,57 @@ export default function ViewPlans() {
   return (
     <>
       <Head>
-        <title>My Trips - Travel Planner</title>
+        <title>My Trips – Travel Planner</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="container">
         <header className="site-header">
-          <div className="logo">
-            <h1>My Trips</h1>
-          </div>
+          <div className="logo"><h1>My Trips</h1></div>
           <nav className="site-nav">
             <Link href="/"><a>Home</a></Link>
             <Link href="/planTrip"><a>Plan Trip</a></Link>
             <Link href="/invoice"><a>Invoice</a></Link>
-            <Button type="danger" onClick={handleLogout}>
-              Logout
-            </Button>
+            <Button type="danger" onClick={handleLogout}>Logout</Button>
           </nav>
         </header>
 
         <section className="content-section">
           {error && <p className="error-msg">{error}</p>}
+
           {trips.length > 0 ? (
             <div className="trip-list">
               {trips.map((trip) => (
                 <div key={trip._id} className="trip-card">
-                  {/* Title is clickable: redirects to Plan Details page with query parameters */}
                   <h3>
                     <Link href={`/planDetails?planId=${trip._id}&country=${encodeURIComponent(trip.country)}`}>
                       <a>{trip.country} Trip</a>
                     </Link>
                   </h3>
-                  <p>
-                    <strong>Date &amp; Time:</strong> {trip.travelDateTime}
-                  </p>
-                  <p>
-                    <strong>Travelers:</strong> {trip.numberOfTravelers}
-                  </p>
-                  <p>
-                    <strong>Language Suitability:</strong> {trip.languageSuitability ? 'Yes' : 'No'}
-                  </p>
-                  <Popconfirm
-                    title="Are you sure you want to cancel this plan?"
-                    onConfirm={() => handleDelete(trip._id)}
-                    okText="Yes"
-                    cancelText="No"
-                  >
-                    <Button type="danger">Cancel</Button>
-                  </Popconfirm>
+                  <p><strong>Date &amp; Time:</strong> {trip.travelDateTime}</p>
+                  <p><strong>Travelers:</strong> {trip.numberOfTravelers}</p>
+                  <p><strong>Know Local Language?</strong> {trip.languageSuitability ? 'Yes' : 'No'}</p>
+                  <div className="trip-actions">
+                    <Popconfirm
+                      title="Cancel this trip?"
+                      onConfirm={() => handleDelete(trip._id)}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button type="danger">Cancel</Button>
+                    </Popconfirm>
+                    <Button
+                      type="primary"
+                      style={{ marginLeft: 8 }}
+                      onClick={() => handleInvoice(trip._id)}
+                    >
+                      Generate Invoice
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="info-text">No trips found.</p>
+            <p className="info-text">No trips found for your account.</p>
           )}
         </section>
 
