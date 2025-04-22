@@ -12,10 +12,10 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export default function InvoiceList() {
   const [invoices, setInvoices] = useState([])
-  const [error, setError]     = useState('')
-  const router                = useRouter()
+  const [error, setError] = useState('')
+  const router = useRouter()
 
-  // Load invoices on mount
+  // load list of invoices
   useEffect(() => {
     const raw = localStorage.getItem('user')
     if (!raw) return router.push('/login')
@@ -25,82 +25,38 @@ export default function InvoiceList() {
       .get(`${API_URL}/api/invoices`, {
         headers: { 'x-user-id': customerId },
       })
-      .then((res) => setInvoices(res.data))
-      .catch((err) => {
+      .then(res => setInvoices(res.data))
+      .catch(err => {
         console.error(err)
         setError(err.response?.data?.error || 'Failed to load invoices')
       })
   }, [router])
 
-  // VIEW: open blank tab synchronously, then load PDF into it
-  const handleView = (tripId) => {
-    console.log('View clicked for trip', tripId)
-    const newWin = window.open('', '_blank')
-    if (!newWin) {
-      message.error('Please enable pop‑ups for this site.')
-      return
-    }
-
-    const raw = localStorage.getItem('user')
-    if (!raw) {
-      newWin.close()
-      return router.push('/login')
-    }
-    const { customerId } = JSON.parse(raw)
-
-    axios
-      .post(
-        `${API_URL}/api/generateInvoice`,
-        { tripId },
-        {
-          headers:      { 'x-user-id': customerId },
-          responseType: 'blob',
-        }
-      )
-      .then((res) => {
-        const blob    = new Blob([res.data], { type: 'application/pdf' })
-        const blobUrl = window.URL.createObjectURL(blob)
-        newWin.location.href = blobUrl
-      })
-      .catch((err) => {
-        console.error('Failed to view invoice:', err)
-        newWin.close()
-        message.error('Failed to view invoice')
-      })
-  }
-
-  // DOWNLOAD: fetch PDF, then trigger a download
-  const handleDownload = (tripId, invoiceNumber) => {
-    console.log('Download clicked for trip', tripId)
+  // open the PDF in a new tab (view) or force-download
+  const openPdf = (tripId, invoiceNumber, download = false) => {
     const raw = localStorage.getItem('user')
     if (!raw) return router.push('/login')
     const { customerId } = JSON.parse(raw)
 
-    axios
-      .post(
-        `${API_URL}/api/generateInvoice`,
-        { tripId },
-        {
-          headers:      { 'x-user-id': customerId },
-          responseType: 'blob',
-        }
-      )
-      .then((res) => {
-        const blob    = new Blob([res.data], { type: 'application/pdf' })
-        const blobUrl = window.URL.createObjectURL(blob)
-        const link    = document.createElement('a')
-        link.href     = blobUrl
-        link.download = `invoice-${invoiceNumber}.pdf`
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-        window.URL.revokeObjectURL(blobUrl)
-        message.success('Invoice downloaded!')
-      })
-      .catch((err) => {
-        console.error('Failed to download invoice:', err)
-        message.error('Failed to download invoice')
-      })
+    // build URL with query params
+    const url = `${API_URL}/api/generateInvoice?tripId=${tripId}&userId=${customerId}`
+
+    if (download) {
+      // create a hidden <a> to download
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `invoice-${invoiceNumber}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      message.success('Invoice downloaded!')
+    } else {
+      // open in new tab
+      const win = window.open(url, '_blank')
+      if (!win) {
+        message.error('Please enable pop‑ups for this site.')
+      }
+    }
   }
 
   const handleLogout = () => {
@@ -122,6 +78,7 @@ export default function InvoiceList() {
             <Link href="/"><a>Home</a></Link>
             <Link href="/planTrip"><a>Plan Trip</a></Link>
             <Link href="/viewPlans"><a>My Trips</a></Link>
+            <Link href="/invoice"><a>Invoices</a></Link>
             <Button type="danger" onClick={handleLogout}>Logout</Button>
           </nav>
         </header>
@@ -133,16 +90,24 @@ export default function InvoiceList() {
             <List
               itemLayout="horizontal"
               dataSource={invoices}
-              renderItem={(inv) => (
+              renderItem={inv => (
                 <List.Item
                   actions={[
-                    <Button key="view" type="link" onClick={() => handleView(inv.tripId)}>
+                    <Button
+                      key="view"
+                      type="link"
+                      onClick={() =>
+                        openPdf(inv.tripId, inv.invoiceNumber, false)
+                      }
+                    >
                       View
                     </Button>,
                     <Button
                       key="download"
                       type="primary"
-                      onClick={() => handleDownload(inv.tripId, inv.invoiceNumber)}
+                      onClick={() =>
+                        openPdf(inv.tripId, inv.invoiceNumber, true)
+                      }
                     >
                       Download
                     </Button>,
@@ -152,7 +117,9 @@ export default function InvoiceList() {
                     title={`Invoice #${inv.invoiceNumber}`}
                     description={
                       <>
-                        <div>Date: {moment(inv.date).format('DD/MM/YYYY')}</div>
+                        <div>
+                          Date: {moment(inv.date).format('DD/MM/YYYY')}
+                        </div>
                         <div>Total: RM{inv.total.toFixed(2)}</div>
                       </>
                     }
@@ -161,7 +128,9 @@ export default function InvoiceList() {
               )}
             />
           ) : (
-            <p className="info-text">{error || 'You have no invoices yet.'}</p>
+            <p className="info-text">
+              {error || 'You have no invoices yet.'}
+            </p>
           )}
         </section>
 
