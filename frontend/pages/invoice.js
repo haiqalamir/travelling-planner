@@ -1,76 +1,106 @@
-// pages/invoice.js
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+// frontend/pages/invoice.js
+
+import React, { useState, useEffect } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
+import axios from 'axios'
 import { List, Button, message } from 'antd'
 import moment from 'moment'
 import { useRouter } from 'next/router'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
 export default function InvoiceList() {
   const [invoices, setInvoices] = useState([])
-  const [error, setError] = useState('')
-  const router = useRouter()
+  const [error, setError]     = useState('')
+  const router                = useRouter()
 
-  // 1) on mount, load your invoices
+  // Load invoices on mount
   useEffect(() => {
     const raw = localStorage.getItem('user')
-    if (!raw) {
-      // no session at all → must log in
-      router.push('/login')
-      return
-    }
+    if (!raw) return router.push('/login')
     const { customerId } = JSON.parse(raw)
 
     axios
-      .get('http://localhost:3001/api/invoices', {
+      .get(`${API_URL}/api/invoices`, {
         headers: { 'x-user-id': customerId },
       })
-      .then((res) => {
-        setInvoices(res.data)
-      })
+      .then((res) => setInvoices(res.data))
       .catch((err) => {
         console.error(err)
         setError(err.response?.data?.error || 'Failed to load invoices')
       })
   }, [router])
 
-  // 2) fetch PDF and either open or download
-  const fetchPdf = async (tripId, invoiceNumber, action) => {
+  // VIEW: open blank tab synchronously, then load PDF into it
+  const handleView = (tripId) => {
+    console.log('View clicked for trip', tripId)
+    const newWin = window.open('', '_blank')
+    if (!newWin) {
+      message.error('Please enable pop‑ups for this site.')
+      return
+    }
+
     const raw = localStorage.getItem('user')
     if (!raw) {
-      router.push('/login')
-      return
+      newWin.close()
+      return router.push('/login')
     }
     const { customerId } = JSON.parse(raw)
 
-    try {
-      const res = await axios.post(
-        'http://localhost:3001/api/generateInvoice',
+    axios
+      .post(
+        `${API_URL}/api/generateInvoice`,
         { tripId },
         {
-          headers: { 'x-user-id': customerId },
+          headers:      { 'x-user-id': customerId },
           responseType: 'blob',
         }
       )
+      .then((res) => {
+        const blob    = new Blob([res.data], { type: 'application/pdf' })
+        const blobUrl = window.URL.createObjectURL(blob)
+        newWin.location.href = blobUrl
+      })
+      .catch((err) => {
+        console.error('Failed to view invoice:', err)
+        newWin.close()
+        message.error('Failed to view invoice')
+      })
+  }
 
-      const blobUrl = window.URL.createObjectURL(
-        new Blob([res.data], { type: 'application/pdf' })
+  // DOWNLOAD: fetch PDF, then trigger a download
+  const handleDownload = (tripId, invoiceNumber) => {
+    console.log('Download clicked for trip', tripId)
+    const raw = localStorage.getItem('user')
+    if (!raw) return router.push('/login')
+    const { customerId } = JSON.parse(raw)
+
+    axios
+      .post(
+        `${API_URL}/api/generateInvoice`,
+        { tripId },
+        {
+          headers:      { 'x-user-id': customerId },
+          responseType: 'blob',
+        }
       )
-      if (action === 'view') {
-        window.open(blobUrl, '_blank')
-      } else {
-        const link = document.createElement('a')
-        link.href = blobUrl
+      .then((res) => {
+        const blob    = new Blob([res.data], { type: 'application/pdf' })
+        const blobUrl = window.URL.createObjectURL(blob)
+        const link    = document.createElement('a')
+        link.href     = blobUrl
         link.download = `invoice-${invoiceNumber}.pdf`
         document.body.appendChild(link)
         link.click()
         link.remove()
-      }
-    } catch (err) {
-      console.error(err)
-      message.error(`Failed to ${action} invoice`)
-    }
+        window.URL.revokeObjectURL(blobUrl)
+        message.success('Invoice downloaded!')
+      })
+      .catch((err) => {
+        console.error('Failed to download invoice:', err)
+        message.error('Failed to download invoice')
+      })
   }
 
   const handleLogout = () => {
@@ -87,9 +117,7 @@ export default function InvoiceList() {
 
       <div className="container">
         <header className="site-header">
-          <div className="logo">
-            <h1>My Invoices</h1>
-          </div>
+          <div className="logo"><h1>My Invoices</h1></div>
           <nav className="site-nav">
             <Link href="/"><a>Home</a></Link>
             <Link href="/planTrip"><a>Plan Trip</a></Link>
@@ -108,21 +136,13 @@ export default function InvoiceList() {
               renderItem={(inv) => (
                 <List.Item
                   actions={[
-                    <Button
-                      key="view"
-                      type="link"
-                      onClick={() =>
-                        fetchPdf(inv.tripId, inv.invoiceNumber, 'view')
-                      }
-                    >
+                    <Button key="view" type="link" onClick={() => handleView(inv.tripId)}>
                       View
                     </Button>,
                     <Button
                       key="download"
                       type="primary"
-                      onClick={() =>
-                        fetchPdf(inv.tripId, inv.invoiceNumber, 'download')
-                      }
+                      onClick={() => handleDownload(inv.tripId, inv.invoiceNumber)}
                     >
                       Download
                     </Button>,
@@ -141,9 +161,7 @@ export default function InvoiceList() {
               )}
             />
           ) : (
-            <p className="info-text">
-              {error ? error : 'You have no invoices yet.'}
-            </p>
+            <p className="info-text">{error || 'You have no invoices yet.'}</p>
           )}
         </section>
 
