@@ -4,12 +4,36 @@ const express        = require('express');
 const authMiddleware = require('../middleware/auth');
 const Trip           = require('../../models/Trip');
 const Invoice        = require('../../models/Invoice');
+const Customer       = require('../../models/Customer'); // Import Customer model
+const User           = require('../../models/User');     // Import User model
 const hummus         = require('muhammara');
 const moment         = require('moment');
 
 const router = express.Router();
 
-function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue, inline = false) {
+// Function to split description into lines of max 50 characters
+function splitDescription(description, maxLength = 50) {
+  const lines = [];
+  let line = '';
+
+  // Split the description into lines
+  description.split(' ').forEach(word => {
+    if ((line + ' ' + word).length <= maxLength) {
+      line = line ? line + ' ' + word : word;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  });
+
+  if (line) {
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+function streamPdf(res, trip, customer, user, invoiceNum, services, subtotal, salesTax, totalDue, inline = false) {
   // 1) set headers
   res.set({
     'Content-Type': 'application/pdf',
@@ -37,7 +61,7 @@ function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue
       x,
       842 - y,
       {
-        font:  opts.bold ? fontBold    : fontRegular,
+        font:  opts.bold ? fontBold : fontRegular,
         size:  opts.size  || 10,
         colorspace: 'gray',
         color: opts.color != null ? opts.color : 0x00
@@ -62,9 +86,9 @@ function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue
 
   // — CUSTOMER —
   drawText('TO:',                    50, 200, { size:12 });
-  drawText(trip.customerName,       50, 220);
-  drawText(`Phone: ${trip.customerPhone}`, 50, 235);
-  drawText(`Email: ${trip.customerEmail}`, 50, 250);
+  drawText(customer.name || 'N/A', 50, 220);
+  drawText(`Phone: ${customer.phoneNumber || 'N/A'}`, 50, 235);
+  drawText(`Email: ${user.email || 'N/A'}`, 50, 250); // Fetch email from the User model
 
   // — ITEMS TABLE —
   const tableX = 50, tableW = 500;
@@ -92,10 +116,16 @@ function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue
   drawText('TOTAL(RM)',  col3 + 2, top + 20, { size:12, bold:true });
 
   services.forEach((svc, i) => {
-    const y = top + hdrH + rowH * i + 20;
+    const y = top + hdrH + rowH * i + 15;
     drawText(`${i+1}. ${svc.label}`, col1 + 5, y);
-    drawText(svc.description,        col2 + 5, y, { size:10 });
-    drawText(svc.amount.toFixed(2),  col3 + 5, y);
+
+    // Split description into multiple lines
+    const descriptionLines = splitDescription(svc.description, 70);
+    descriptionLines.forEach((line, index) => {
+      drawText(line, col2 + 5, y + (index * 10), { size: 10 });
+    });
+
+    drawText(svc.amount.toFixed(2), col3 + 5, y);
   });
 
   // — TOTALS —
@@ -134,14 +164,32 @@ router.post('/', authMiddleware, async (req, res) => {
     const trip       = await Trip.findOne({ _id: tripId, customerId });
     if (!trip) return res.status(404).json({ error: 'Trip not found' });
 
-    const services = [
-      { label:'Accommodation', description:'Stay at a hotel…', amount:150.00 },
-      { label:'Transport',     description:'Airport & local…', amount: 50.00 },
-      { label:'Entertainment', description:'Tours & events…', amount:100.00 },
-      { label:'Meals',         description:'Full meal plan…', amount: 60.00 },
-      { label:'Insurance',     description:'Comprehensive…', amount: 30.00 },
-      { label:'Misc',          description:'Service fees…', amount: 25.00 },
+    // Fetch the customer details
+    const customer = await Customer.findById(trip.customerId);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    // Fetch the user details for the email
+    const user = await User.findOne({ customerId: trip.customerId });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const servicesList = [
+      { label:'Accommodation', description:'Stay at a hotel with comfortable rooms and essential amenities for your vacation.' },
+      { label:'Transport',     description:'Includes airport transfers and transportation within the destination city.' },
+      { label:'Entertainment', description:'Access to local attractions, guided tours, and cultural events during your stay.' },
+      { label:'Meals',         description:'Full meal plan including breakfast, lunch, and dinner at selected restaurants or the hotel.' },
+      { label:'Insurance',     description:'Comprehensive travel insurance covering cancellations, medical emergencies, and lost luggage.' },
+      { label:'Misc',          description:'Additional expenses such as service fees, taxes, or tips during the trip.' },
     ];
+
+    // Get prices for the services from database
+    const services = servicesList.map(service => {
+      const tripService = trip.selectedServices.find(s => s.name === service.label);
+      return {
+        ...service,
+        amount: tripService ? tripService.priceRM : 0
+      };
+    });
+
     const subtotal = services.reduce((a,s)=>a+s.amount,0);
     const salesTax = parseFloat((subtotal*0.06).toFixed(2));
     const totalDue = subtotal + salesTax;
@@ -161,7 +209,7 @@ router.post('/', authMiddleware, async (req, res) => {
       total: totalDue
     });
 
-    streamPdf(res, trip, nextNum, services, subtotal, salesTax, totalDue, false);
+    streamPdf(res, trip, customer, user, nextNum, services, subtotal, salesTax, totalDue, false);
   } catch (err) {
     console.error(err);
     if (!res.headersSent) res.status(500).json({ error: 'Error generating invoice PDF' });
@@ -177,7 +225,9 @@ router.get('/', authMiddleware, async (req, res) => {
     if (!inv) return res.status(404).json({ error: 'Invoice not found' });
 
     const trip     = await Trip.findById(tripId);
-    const services = inv.items.map(i=>({
+    const customer = await Customer.findById(trip.customerId);
+    const user     = await User.findOne({ customerId: trip.customerId });
+    const services = inv.items.map(i => ({
       label: i.description,
       description: i.description,
       amount: i.amount
@@ -187,7 +237,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const totalDue = inv.total;
     const invNum   = String(inv.invoiceNumber).padStart(4,'0');
 
-    streamPdf(res, trip, invNum, services, subtotal, salesTax, totalDue, true);
+    streamPdf(res, trip, customer, user, invNum, services, subtotal, salesTax, totalDue, true);
   } catch (err) {
     console.error(err);
     if (!res.headersSent) res.status(500).json({ error: 'Error streaming invoice PDF' });
