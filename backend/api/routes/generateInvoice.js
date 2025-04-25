@@ -87,9 +87,9 @@ function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue
     );
   }
 
-  drawText('ITEM',        col1 + 5, top + 10, { size:12, bold:true });
-  drawText('DESCRIPTION', col2 + 5, top + 10, { size:12, bold:true });
-  drawText('TOTAL (RM)',  col3 + 5, top + 10, { size:12, bold:true });
+  drawText('ITEM',        col1 + 5, top + 20, { size:12, bold:true });
+  drawText('DESCRIPTION', col2 + 5, top + 20, { size:12, bold:true });
+  drawText('TOTAL(RM)',  col3 + 2, top + 20, { size:12, bold:true });
 
   services.forEach((svc, i) => {
     const y = top + hdrH + rowH * i + 20;
@@ -118,7 +118,7 @@ function streamPdf(res, trip, invoiceNum, services, subtotal, salesTax, totalDue
   drawText('• Phone: +60 3-1234 5678',      tableX, yPos, { size:8 });
   yPos += 10;
   drawText('• Email: james@travelplanner.com', tableX, yPos, { size:8 });
-  drawText('THANK YOU FOR YOUR BUSINESS!', 295, 820, { size:12, bold:true });
+  drawText('THANK YOU FOR YOUR BUSINESS!', 200, 820, { size:12, bold:true });
 
   // finish
   writer.writePage(page);
